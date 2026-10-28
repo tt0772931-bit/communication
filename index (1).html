@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تواصل</title>
+<style>
+:root{--bg:#f0f2f5;--card:#fff;--text:#1c1e21;--muted:#65676b;--primary:#1877f2;--primary-soft:#e7f3ff;--border:#dddfe2;--danger:#e0245e;--radius:12px}
+*{box-sizing:border-box}
+body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+button{font:inherit;cursor:pointer}
+input,textarea{font:inherit}
+header{position:sticky;top:0;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.1);z-index:10}
+.bar{max-width:720px;margin:auto;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:10px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:22px;color:var(--primary)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:none;border:none;padding:8px 12px;border-radius:8px;color:var(--muted);font-weight:600}
+nav button.active,nav button:hover{background:var(--primary-soft);color:var(--primary)}
+main{max-width:720px;margin:20px auto;padding:0 12px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.1);padding:16px;margin-bottom:16px}
+.btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:600}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:#e4e6eb;color:var(--text)}
+.btn.danger{background:var(--danger)}
+.btn.small{padding:4px 10px;font-size:13px}
+input[type=text],input[type=password],textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#fafbfc;outline:none}
+input:focus,textarea:focus{border-color:var(--primary)}
+textarea{resize:vertical;min-height:70px}
+.row{display:flex;align-items:center;gap:10px}
+.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1877f2,#8e44ad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.avatar.lg{width:80px;height:80px;font-size:30px}
+.muted{color:var(--muted);font-size:13px}
+.post-text{white-space:pre-wrap;word-wrap:break-word;margin:10px 0}
+.actions{display:flex;gap:8px;border-top:1px solid var(--border);padding-top:8px;margin-top:8px}
+.actions button{flex:1;background:none;border:none;padding:8px;border-radius:8px;color:var(--muted);font-weight:600}
+.actions button:hover{background:#f2f3f5}
+.actions button.liked{color:var(--danger)}
+.comment{background:#f0f2f5;border-radius:10px;padding:8px 12px;margin-top:8px}
+.comment-form{display:flex;gap:8px;margin-top:10px}
+.comment-form input{flex:1}
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth-card{width:100%;max-width:380px}
+.auth-card h1{color:var(--primary);text-align:center;margin:0 0 4px;font-size:36px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.error{color:var(--danger);font-size:14px;min-height:20px}
+.stats{display:flex;gap:28px;margin-top:14px}
+.stats div{text-align:center}
+.stats b{display:block;font-size:18px}
+.empty{text-align:center;color:var(--muted);padding:30px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;padding:8px;border:none;border-radius:8px;background:#e4e6eb;font-weight:600}
+.tabs button.active{background:var(--primary);color:#fff}
+.user-item{justify-content:space-between}
+.user-item .row{min-width:0}
+.clickable{cursor:pointer}
+@media(max-width:480px){nav button{padding:6px 8px;font-size:14px}.logo{font-size:18px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const KEYS = { users: 'tw_users', posts: 'tw_posts', session: 'tw_session' };
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+let users = load(KEYS.users, null);
+let posts = load(KEYS.posts, null);
+let session = load(KEYS.session, null);
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const initials = n => n.trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+const getUser = u => users.find(x => x.username === u);
+const me = () => getUser(session);
+
+function timeAgo(t) {
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return 'الآن';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `منذ ${m} دقيقة`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `منذ ${h} ساعة`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `منذ ${d} يوم`;
+  return new Date(t).toLocaleDateString('ar');
+}
+
+function persist() {
+  save(KEYS.users, users);
+  save(KEYS.posts, posts);
+  save(KEYS.session, session);
+}
+
+// بيانات تجريبية في أول تشغيل
+if (!users) {
+  users = [
+    { username: 'ahmed', name: 'أحمد علي', password: '123456', bio: 'مطور ويب 👨‍💻', following: ['sara'] },
+    { username: 'sara', name: 'سارة محمد', password: '123456', bio: 'أحب القراءة والسفر 📚', following: [] },
+    { username: 'omar', name: 'عمر خالد', password: '123456', bio: 'مصوّر هواة 📷', following: ['ahmed'] }
+  ];
+}
+if (!posts) {
+  const now = Date.now();
+  posts = [
+    { id: uid(), author: 'sara', text: 'مرحباً بالجميع في تواصل! 🎉', createdAt: now - 3600e3, likes: ['ahmed', 'omar'],
+      comments: [{ id: uid(), author: 'ahmed', text: 'أهلاً بك يا سارة!', createdAt: now - 3000e3 }] },
+    { id: uid(), author: 'omar', text: 'صورة غروب اليوم كانت رائعة 🌅', createdAt: now - 7200e3, likes: [], comments: [] }
+  ];
+}
+persist();
+
+const state = {
+  view: 'home', feedTab: 'all', profile: null, authMode: 'login',
+  error: '', draft: '', openComments: {}, q: '', editing: false
+};
+
+function render() {
+  if (!session || !me()) { session = null; renderAuth(); }
+  else renderApp();
+}
+
+/* ---------- الدخول والتسجيل ---------- */
+function renderAuth() {
+  const reg = state.authMode === 'register';
+  $('#app').innerHTML = `
+  <div class="auth-wrap"><div class="auth-card">
+    <h1>تواصل</h1>
+    <p class="muted" style="text-align:center">شارك أفكارك مع أصدقائك</p>
+    <div class="card stack">
+      <div class="tabs">
+        <button class="${!reg ? 'active' : ''}" onclick="setAuth('login')">تسجيل الدخول</button>
+        <button class="${reg ? 'active' : ''}" onclick="setAuth('register')">حساب جديد</button>
+      </div>
+      ${reg ? `<input type="text" id="n" placeholder="الاسم الكامل">` : ''}
+      <input type="text" id="u" placeholder="اسم المستخدم (إنجليزي)" autocomplete="username">
+      <input type="password" id="p" placeholder="كلمة المرور" autocomplete="current-password">
+      <div class="error" id="err">${esc(state.error)}</div>
+      <button class="btn" onclick="auth('${reg ? 'register' : 'login'}')">${reg ? 'إنشاء الحساب' : 'دخول'}</button>
+      <p class="muted" style="text-align:center">حساب تجريبي: ahmed / 123456</p>
+    </div>
+  </div></div>`;
+}
+
+function setAuth(mode) { state.authMode = mode; state.error = ''; render(); }
+
+function showErr(msg) { state.error = msg; $('#err').textContent = msg; }
+
+function auth(mode) {
+  const u = $('#u').value.trim().toLowerCase();
+  const p = $('#p').value;
+  const n = $('#n') ? $('#n').value.trim() : '';
+  if (mode === 'register') {
+    if (!/^[a-z0-9_]{3,20}$/.test(u)) return showErr('اسم المستخدم 3-20 حرفاً (إنجليزي أو أرقام أو _)');
+    if (!n) return showErr('أدخل اسمك');
+    if (p.length < 6) return showErr('كلمة المرور 6 أحرف على الأقل');
+    if (getUser(u)) return showErr('اسم المستخدم مستخدم بالفعل');
+    users.push({ username: u, name: n, password: p, bio: '', following: [] });
+    session = u;
+  } else {
+    const user = getUser(u);
+    if (!user || user.password !== p) return showErr('بيانات الدخول غير صحيحة');
+    session = u;
+  }
+  state.error = '';
+  persist();
+  render();
+}
+
+function logout() {
+  session = null;
+  state.view = 'home';
+  persist();
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (!me() && ['u', 'p', 'n'].includes(e.target.id)) auth(state.authMode);
+});
+
+/* ---------- الهيكل العام ---------- */
+function renderApp() {
+  let body = '';
+  if (state.view === 'home') body = homeView();
+  else if (state.view === 'people') body = peopleView();
+  else if (state.view === 'profile') body = profileView(state.profile || session);
+
+  const onOwn = state.view === 'profile' && (!state.profile || state.profile === session);
+  $('#app').innerHTML = `
+  <header><div class="bar">
+    <div class="logo">تواصل</div>
+    <nav>
+      <button class="${state.view === 'home' ? 'active' : ''}" onclick="go('home')">الرئيسية</button>
+      <button class="${state.view === 'people' ? 'active' : ''}" onclick="go('people')">الأشخاص</button>
+      <button class="${onOwn ? 'active' : ''}" onclick="go('profile')">ملفي</button>
+      <button onclick="logout()">خروج</button>
+    </nav>
+  </div></header>
+  <main>${body}</main>`;
+}
+
+function go(view, profile = null) {
+  state.view = view;
+  state.profile = profile;
+  state.editing = false;
+  window.scrollTo(0, 0);
+  render();
+}
+
+function openProfile(username) { go('profile', username); }
+
+/* ---------- الصفحة الرئيسية ---------- */
+function composer() {
+  const m = me();
+  return `
+  <div class="card">
+    <div class="row" style="align-items:flex-start">
+      <div class="avatar">${esc(initials(m.name))}</div>
+      <div style="flex:1">
+        <textarea id="draft" placeholder="بماذا تفكر يا ${esc(m.name.split(' ')[0])}؟" oninput="state.draft=this.value">${esc(state.draft)}</textarea>
+        <div style="text-align:left;margin-top:8px"><button class="btn" onclick="publish()">نشر</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function homeView() {
+  const m = me();
+  const list = posts.filter(p => state.feedTab === 'all' || p.author === session || m.following.includes(p.author));
+  return composer() + `
+  <div class="tabs">
+    <button class="${state.feedTab === 'all' ? 'active' : ''}" onclick="feedTab('all')">الكل</button>
+    <button class="${state.feedTab === 'following' ? 'active' : ''}" onclick="feedTab('following')">المتابَعون</button>
+  </div>` +
+  (list.length ? list.map(postCard).join('') : `<div class="card empty">لا توجد منشورات بعد</div>`);
+}
+
+function feedTab(t) { state.feedTab = t; render(); }
+
+function publish() {
+  const t = state.draft.trim();
+  if (!t) return;
+  posts.unshift({ id: uid(), author: session, text: t, createdAt: Date.now(), likes: [], comments: [] });
+  state.draft = '';
+  persist();
+  render();
+}
+
+function postCard(p) {
+  const a = getUser(p.author) || { name: 'مستخدم محذوف', username: 'deleted' };
+  const liked = p.likes.includes(session);
+  const open = state.openComments[p.id];
+  return `
+  <article class="card">
+    <div class="row">
+      <div class="avatar clickable" onclick="openProfile('${a.username}')">${esc(initials(a.name))}</div>
+      <div style="flex:1">
+        <b class="clickable" onclick="openProfile('${a.username}')">${esc(a.name)}</b>
+        <div class="muted">@${esc(a.username)} · ${timeAgo(p.createdAt)}</div>
+      </div>
+      ${p.author === session ? `<button class="btn small danger" onclick="deletePost('${p.id}')">حذف</button>` : ''}
+    </div>
+    <div class="post-text">${esc(p.text)}</div>
+    <div class="muted">❤️ ${p.likes.length} · 💬 ${p.comments.length}</div>
+    <div class="actions">
+      <button class="${liked ? 'liked' : ''}" onclick="toggleLike('${p.id}')">${liked ? '❤️' : '🤍'} إعجاب</button>
+      <button onclick="toggleComments('${p.id}')">💬 تعليق</button>
+    </div>
+    ${open ? `
+    <div>
+      ${p.comments.map(c => {
+        const ca = getUser(c.author);
+        return `<div class="comment"><b>${esc(ca ? ca.name : 'مستخدم')}</b> <span class="muted">${timeAgo(c.createdAt)}</span><div>${esc(c.text)}</div></div>`;
+      }).join('')}
+      <div class="comment-form">
+        <input type="text" id="c-${p.id}" placeholder="اكتب تعليقاً..." onkeydown="if(event.key==='Enter')addComment('${p.id}')">
+        <button class="btn small" onclick="addComment('${p.id}')">إرسال</button>
+      </div>
+    </div>` : ''}
+  </article>`;
+}
+
+function toggleLike(id) {
+  const p = posts.find(x => x.id === id);
+  const i = p.likes.indexOf(session);
+  if (i < 0) p.likes.push(session); else p.likes.splice(i, 1);
+  persist();
+  render();
+}
+
+function toggleComments(id) {
+  state.openComments[id] = !state.openComments[id];
+  render();
+}
+
+function addComment(id) {
+  const el = document.getElementById('c-' + id);
+  const t = el.value.trim();
+  if (!t) return;
+  posts.find(x => x.id === id).comments.push({ id: uid(), author: session, text: t, createdAt: Date.now() });
+  state.openComments[id] = true;
+  persist();
+  render();
+}
+
+function deletePost(id) {
+  if (!confirm('هل تريد حذف المنشور؟')) return;
+  posts = posts.filter(p => p.id !== id);
+  persist();
+  render();
+}
+
+/* ---------- الأشخاص ---------- */
+function peopleView() {
+  return `
+  <div class="card"><input type="text" placeholder="ابحث عن شخص..." value="${esc(state.q)}" oninput="state.q=this.value;document.getElementById('plist').innerHTML=peopleList()"></div>
+  <div id="plist">${peopleList()}</div>`;
+}
+
+function peopleList() {
+  const m = me();
+  const q = (state.q || '').toLowerCase();
+  const list = users.filter(u => u.username !== session && (u.name + u.username).toLowerCase().includes(q));
+  if (!list.length) return `<div class="card empty">لا توجد نتائج</div>`;
+  return list.map(u => {
+    const f = m.following.includes(u.username);
+    return `
+    <div class="card row user-item">
+      <div class="row clickable" onclick="openProfile('${u.username}')">
+        <div class="avatar">${esc(initials(u.name))}</div>
+        <div><b>${esc(u.name)}</b><div class="muted">@${esc(u.username)}</div></div>
+      </div>
+      <button class="btn small ${f ? 'ghost' : ''}" onclick="toggleFollow('${u.username}')">${f ? 'إلغاء المتابعة' : 'متابعة'}</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleFollow(username) {
+  const m = me();
+  const i = m.following.indexOf(username);
+  if (i < 0) m.following.push(username); else m.following.splice(i, 1);
+  persist();
+  render();
+}
+
+/* ---------- الملف الشخصي ---------- */
+function profileView(username) {
+  const u = getUser(username);
+  if (!u) return `<div class="card empty">المستخدم غير موجود</div>`;
+  const isMe = username === session;
+  const editing = isMe && state.editing;
+  const userPosts = posts.filter(p => p.author === username);
+  const followers = users.filter(x => x.following.includes(username)).length;
+  const iFollow = me().following.includes(username);
+
+  const info = editing ? `
+    <div class="stack" style="margin-top:12px">
+      <input type="text" id="pname" value="${esc(u.name)}" placeholder="الاسم">
+      <textarea id="pbio" placeholder="نبذة عنك">${esc(u.bio)}</textarea>
+      <div class="row">
+        <button class="btn" onclick="saveProfile()">حفظ</button>
+        <button class="btn ghost" onclick="toggleEdit(false)">إلغاء</button>
+      </div>
+    </div>` : `<p style="white-space:pre-wrap;margin:8px 0">${u.bio ? esc(u.bio) : '<span class="muted">لا توجد نبذة</span>'}</p>`;
+
+  const action = isMe
+    ? (editing ? '' : `<button class="btn ghost small" onclick="toggleEdit(true)">تعديل</button>`)
+    : `<button class="btn small ${iFollow ? 'ghost' : ''}" onclick="toggleFollow('${username}')">${iFollow ? 'إلغاء المتابعة' : 'متابعة'}</button>`;
+
+  return `
+  <div class="card">
+    <div class="row" style="align-items:flex-start">
+      <div class="avatar lg">${esc(initials(u.name))}</div>
+      <div style="flex:1">
+        <h2 style="margin:0">${esc(u.name)}</h2>
+        <div class="muted">@${esc(u.username)}</div>
+      </div>
+      ${action}
+    </div>
+    ${info}
+    <div class="stats">
+      <div><b>${userPosts.length}</b><span class="muted">منشور</span></div>
+      <div><b>${followers}</b><span class="muted">متابِع</span></div>
+      <div><b>${u.following.length}</b><span class="muted">يتابع</span></div>
+    </div>
+  </div>
+  ${userPosts.length ? userPosts.map(postCard).join('') : `<div class="card empty">لا توجد منشورات</div>`}`;
+}
+
+function toggleEdit(v) { state.editing = v; render(); }
+
+function saveProfile() {
+  const u = me();
+  const name = $('#pname').value.trim();
+  if (name) u.name = name;
+  u.bio = $('#pbio').value.trim().slice(0, 200);
+  state.editing = false;
+  persist();
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
